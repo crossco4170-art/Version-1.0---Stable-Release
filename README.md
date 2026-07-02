@@ -1,7 +1,7 @@
-# Blackcrest Recruiting AI
+# BlackcrestRecruitOS
 
 ## Project Overview
-Blackcrest Recruiting AI is a modular recruiting platform focused on applicant lifecycle management, resume processing, AI-assisted evaluation, scheduling, notifications, and reporting. Version 1 is frozen as a stable baseline with secure first-run administrator setup, centralized configuration, and automated regression coverage.
+BlackcrestRecruitOS is a modular recruiting platform focused on applicant lifecycle management, resume processing, AI-assisted evaluation, scheduling, notifications, and reporting. Version 1 is frozen as a stable baseline with secure first-run administrator setup, centralized configuration, and automated regression coverage.
 
 ## Folder Structure
 Top-level folders and responsibilities:

@@ -7,7 +7,7 @@ from utils.logging import configure_logging
 
 
 def main() -> None:
-    """Application entrypoint for the Blackcrest Recruiting AI platform."""
+    """Application entrypoint for the BlackcrestRecruitOS platform."""
     settings = get_settings()
     logger = configure_logging(log_level=settings.log_level)
     initialize_database(settings.database_url)

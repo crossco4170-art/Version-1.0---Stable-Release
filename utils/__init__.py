@@ -1,1 +1,1 @@
-"""Shared utilities for Blackcrest Recruiting AI."""
+"""Shared utilities for BlackcrestRecruitOS."""

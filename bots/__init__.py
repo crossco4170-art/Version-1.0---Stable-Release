@@ -1,1 +1,1 @@
-"""Bot integrations package for Blackcrest Recruiting AI."""
+"""Bot integrations package for BlackcrestRecruitOS."""

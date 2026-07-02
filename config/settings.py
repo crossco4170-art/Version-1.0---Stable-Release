@@ -26,7 +26,7 @@ class Settings(BaseSettings):
         },
     }
 
-    app_name: str = Field(default="Blackcrest Recruiting AI")
+    app_name: str = Field(default="BlackcrestRecruitOS")
     app_env: str = Field(default="development", alias="APP_ENV")
     debug: bool = Field(default=False)
     secret_key: str = Field(default="change-me")

@@ -1,4 +1,4 @@
-"""Domain models package for Blackcrest Recruiting AI."""
+"""Domain models package for BlackcrestRecruitOS."""
 
 from .activity_log import ActivityLog
 from .admin_user import AdminUser

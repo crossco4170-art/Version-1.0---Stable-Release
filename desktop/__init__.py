@@ -1,1 +1,1 @@
-"""Desktop UI package for Blackcrest Recruiting AI."""
+"""Desktop UI package for BlackcrestRecruitOS."""

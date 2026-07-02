@@ -1,10 +1,10 @@
-# Blackcrest Recruiting AI Architecture
+# BlackcrestRecruitOS Architecture
 
 Version: 1 (frozen)
 Last updated: 2026-07-01
 
 ## System Architecture
-Blackcrest Recruiting AI uses a modular, service-oriented Python architecture with a desktop UI, shared configuration boundary, SQLAlchemy data layer, and optional external integrations for AI and notifications.
+BlackcrestRecruitOS uses a modular, service-oriented Python architecture with a desktop UI, shared configuration boundary, SQLAlchemy data layer, and optional external integrations for AI and notifications.
 
 Primary characteristics:
 - Service layer boundaries around domain workflows.

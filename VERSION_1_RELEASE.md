@@ -1,10 +1,10 @@
-# Blackcrest Recruiting AI Version 1 Release
+# BlackcrestRecruitOS Version 1 Release
 
 Release date: 2026-07-01
 Release type: Version 1 freeze (documentation finalization, no behavior changes)
 
 ## Release Objective
-This release freezes Blackcrest Recruiting AI Version 1 as a stable baseline. The focus is preserving current behavior while publishing complete release documentation for operations, support, and future planning.
+This release freezes BlackcrestRecruitOS Version 1 as a stable baseline. The focus is preserving current behavior while publishing complete release documentation for operations, support, and future planning.
 
 ## Completed Features
 - Core applicant lifecycle services for create, edit, list, and status tracking.

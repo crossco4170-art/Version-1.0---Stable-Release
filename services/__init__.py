@@ -1,4 +1,4 @@
-"""Service layer package for Blackcrest Recruiting AI."""
+"""Service layer package for BlackcrestRecruitOS."""
 
 from .activity_log_service import ActivityLogService
 from .admin_user_service import AdminUserService

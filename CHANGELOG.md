@@ -51,6 +51,9 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- Renamed product branding references from "Blackcrest Recruiting AI" to "BlackcrestRecruitOS" across documentation, package metadata docstrings, app defaults, and desktop dashboard labels.
+
 ### Planned for Version 2
 - Full authentication and role-based authorization.
 - Concrete calendar provider adapters.

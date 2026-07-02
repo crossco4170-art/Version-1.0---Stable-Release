@@ -47,7 +47,7 @@ class RecruitingDashboard(ctk.CTk):
         pipeline_stage_colors: dict[str, str] | None = None,
     ) -> None:
         super().__init__()
-        self.title("Blackcrest Recruiting AI Dashboard")
+        self.title("BlackcrestRecruitOS Dashboard")
         self.geometry("1420x860")
         self.minsize(1200, 760)
 
@@ -120,7 +120,7 @@ class RecruitingDashboard(ctk.CTk):
 
         title = ctk.CTkLabel(
             header,
-            text="Blackcrest Recruiting Dashboard",
+            text="BlackcrestRecruitOS",
             text_color="#f8fafc",
             font=ctk.CTkFont(family="Segoe UI", size=24, weight="bold"),
         )

@@ -1,1 +1,1 @@
-"""Configuration package for Blackcrest Recruiting AI."""
+"""Configuration package for BlackcrestRecruitOS."""

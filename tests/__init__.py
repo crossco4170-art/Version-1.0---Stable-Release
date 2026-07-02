@@ -1,1 +1,1 @@
-"""Test suite for Blackcrest Recruiting AI."""
+"""Test suite for BlackcrestRecruitOS."""
