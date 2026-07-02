@@ -1,0 +1,7 @@
+Jane Doe
+(555) 123-4567
+jane@example.com
+Experience: 5 years in software development
+Skills: Python, SQL, FastAPI
+Education: BS Computer Science
+Employment History: Senior Engineer at Acme Corp

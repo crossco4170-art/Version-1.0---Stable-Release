@@ -1,0 +1,4 @@
+name,phone,email,address,drivers_license_status,experience,resume_location,current_status,notes,score
+Jane Doe,(555) 123-4567,jane@example.com,123 Main St,valid,3 years,/tmp/jane.pdf,new,Strong communicator,91
+John Smith,555-7654,john@example.com,456 Oak Ave,valid,2 years,/tmp/john.pdf,screened,Relevant background,88
+Bad Row,,,,,,,,,
