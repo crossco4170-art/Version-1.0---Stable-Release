@@ -7,6 +7,7 @@ from .client import Client
 from .hiring_status import HiringStatus
 from .interview import Interview
 from .job_order import JobOrder
+from .organization import Organization
 from .resume_evaluation import ResumeEvaluation
 
 __all__ = [
@@ -17,5 +18,6 @@ __all__ = [
     "HiringStatus",
     "Interview",
     "JobOrder",
+    "Organization",
     "ResumeEvaluation",
 ]

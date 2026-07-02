@@ -17,6 +17,7 @@ MODEL_MODULES: tuple[str, ...] = (
     "hiring_status",
     "interview",
     "job_order",
+    "organization",
     "resume_evaluation",
 )
 
