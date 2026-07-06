@@ -5,6 +5,7 @@ from services.client_service import ClientService
 from services.hiring_status_service import HiringStatusService
 from services.interview_service import InterviewService
 from services.job_order_service import JobOrderService
+from models.organization import Organization, OrganizationStatus
 from services.seed_admin import seed_admin_user
 from tests.helpers import build_test_session
 from utils.passwords import hash_password, verify_password
@@ -13,20 +14,40 @@ from utils.passwords import hash_password, verify_password
 def test_crud_services_and_admin_seed(tmp_path) -> None:
     session = build_test_session(tmp_path / "services_test.db")
 
+    organization = Organization(
+        name="Greater Connections Staffing",
+        legal_name="Greater Connections Staffing LLC",
+        status=OrganizationStatus.ACTIVE,
+    )
+    session.add(organization)
+    session.commit()
+
+    client_service = ClientService(session=session)
+    client = client_service.create(
+        organization_id=organization.id,
+        company_name="Acme Corp",
+        contact_name="Sam",
+    )
+
+    job_order_service = JobOrderService(session=session)
+    job_order = job_order_service.create(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_code="ACME-PY-2026-001",
+        title="Python Engineer",
+    )
+
     applicant_service = ApplicantService(session=session)
     applicant = applicant_service.create(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_order_id=job_order.id,
         name="Jane Doe",
         email="jane@example.com",
         phone="555-1234",
     )
     applicant = applicant_service.update(applicant.id, current_status="Reviewed")
     assert applicant.current_status == "Reviewed"
-
-    client_service = ClientService(session=session)
-    client = client_service.create(company_name="Acme Corp", contact_name="Sam")
-
-    job_order_service = JobOrderService(session=session)
-    job_order = job_order_service.create(title="Python Engineer", client_id=client.id)
 
     interview_service = InterviewService(session=session)
     interview = interview_service.create(

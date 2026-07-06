@@ -2,10 +2,41 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from models.client import Client
+from models.job_order import JobOrder
+from models.organization import Organization, OrganizationStatus
 from services.applicant_service import ApplicantService
 from services.interview_service import InterviewService
 from services.reporting_service import ReportingService
 from tests.helpers import build_test_session
+
+
+def _create_foundation(session) -> tuple[int, int, int]:
+    organization = Organization(
+        name="Greater Connections Staffing",
+        legal_name="Greater Connections Staffing LLC",
+        status=OrganizationStatus.ACTIVE,
+    )
+    session.add(organization)
+    session.commit()
+
+    client = Client(
+        organization_id=organization.id,
+        company_name="USPS",
+    )
+    session.add(client)
+    session.commit()
+
+    job_order = JobOrder(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_code="USPS-RCA-2026-001",
+        title="Rural Carrier Associate",
+    )
+    session.add(job_order)
+    session.commit()
+
+    return organization.id, client.id, job_order.id
 
 
 def test_daily_weekly_monthly_reports_include_expected_metrics(tmp_path) -> None:
@@ -14,8 +45,12 @@ def test_daily_weekly_monthly_reports_include_expected_metrics(tmp_path) -> None
     applicant_service = ApplicantService(session=session)
     interview_service = InterviewService(session=session)
     reporting = ReportingService(session=session)
+    organization_id, client_id, job_order_id = _create_foundation(session)
 
     alice = applicant_service.create(
+        organization_id=organization_id,
+        client_id=client_id,
+        job_order_id=job_order_id,
         name="Alice",
         email="alice@example.com",
         score=91,
@@ -23,6 +58,9 @@ def test_daily_weekly_monthly_reports_include_expected_metrics(tmp_path) -> None
         date_added=datetime(2026, 7, 1, 9, 0),
     )
     bob = applicant_service.create(
+        organization_id=organization_id,
+        client_id=client_id,
+        job_order_id=job_order_id,
         name="Bob",
         email="bob@example.com",
         score=72,
@@ -30,6 +68,9 @@ def test_daily_weekly_monthly_reports_include_expected_metrics(tmp_path) -> None
         date_added=datetime(2026, 7, 3, 11, 0),
     )
     applicant_service.create(
+        organization_id=organization_id,
+        client_id=client_id,
+        job_order_id=job_order_id,
         name="Cara",
         email="cara@example.com",
         score=88,
@@ -66,8 +107,12 @@ def test_pipeline_report_and_exports_create_files(tmp_path) -> None:
 
     applicant_service = ApplicantService(session=session)
     reporting = ReportingService(session=session)
+    organization_id, client_id, job_order_id = _create_foundation(session)
 
     applicant_service.create(
+        organization_id=organization_id,
+        client_id=client_id,
+        job_order_id=job_order_id,
         name="Nina",
         email="nina@example.com",
         current_status="screened",
@@ -75,6 +120,9 @@ def test_pipeline_report_and_exports_create_files(tmp_path) -> None:
         date_added=datetime(2026, 7, 2, 9, 0),
     )
     applicant_service.create(
+        organization_id=organization_id,
+        client_id=client_id,
+        job_order_id=job_order_id,
         name="Oscar",
         email="oscar@example.com",
         current_status="rejected",

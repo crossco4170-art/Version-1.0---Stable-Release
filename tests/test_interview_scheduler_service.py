@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import logging
 
+from models.client import Client
+from models.job_order import JobOrder
+from models.organization import Organization, OrganizationStatus
 from services.applicant_service import ApplicantService
 from services.interview_scheduler_service import InterviewSchedulerService
 from tests.helpers import build_test_session
@@ -28,11 +31,46 @@ class CaptureHandler(logging.Handler):
         self.records.append(record)
 
 
+def _create_foundation(session) -> tuple[int, int, int]:
+    organization = Organization(
+        name="Greater Connections Staffing",
+        legal_name="Greater Connections Staffing LLC",
+        status=OrganizationStatus.ACTIVE,
+    )
+    session.add(organization)
+    session.commit()
+
+    client = Client(
+        organization_id=organization.id,
+        company_name="USPS",
+    )
+    session.add(client)
+    session.commit()
+
+    job_order = JobOrder(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_code="USPS-RCA-2026-001",
+        title="Rural Carrier Associate",
+    )
+    session.add(job_order)
+    session.commit()
+
+    return organization.id, client.id, job_order.id
+
+
 def test_schedule_interview_creates_record_and_updates_applicant_status(tmp_path) -> None:
     session = build_test_session(tmp_path / "schedule_test.db")
 
     applicant_service = ApplicantService(session=session)
-    applicant = applicant_service.create(name="Jane Doe", email="jane@example.com")
+    organization_id, client_id, job_order_id = _create_foundation(session)
+    applicant = applicant_service.create(
+        organization_id=organization_id,
+        client_id=client_id,
+        job_order_id=job_order_id,
+        name="Jane Doe",
+        email="jane@example.com",
+    )
 
     scheduler = InterviewSchedulerService(session=session)
     interview = scheduler.schedule_interview(
@@ -57,7 +95,14 @@ def test_schedule_interview_uses_calendar_provider_when_configured(tmp_path) -> 
     session = build_test_session(tmp_path / "schedule_calendar_test.db")
 
     applicant_service = ApplicantService(session=session)
-    applicant = applicant_service.create(name="John Doe", email="john@example.com")
+    organization_id, client_id, job_order_id = _create_foundation(session)
+    applicant = applicant_service.create(
+        organization_id=organization_id,
+        client_id=client_id,
+        job_order_id=job_order_id,
+        name="John Doe",
+        email="john@example.com",
+    )
 
     provider = StubCalendarProvider()
     scheduler = InterviewSchedulerService(session=session, calendar_provider=provider)
@@ -76,7 +121,14 @@ def test_schedule_interview_handles_calendar_failure_gracefully(tmp_path) -> Non
     session = build_test_session(tmp_path / "schedule_calendar_failure.db")
 
     applicant_service = ApplicantService(session=session)
-    applicant = applicant_service.create(name="Chris Doe", email="chris@example.com")
+    organization_id, client_id, job_order_id = _create_foundation(session)
+    applicant = applicant_service.create(
+        organization_id=organization_id,
+        client_id=client_id,
+        job_order_id=job_order_id,
+        name="Chris Doe",
+        email="chris@example.com",
+    )
 
     logger = logging.getLogger("test.interview.scheduler")
     logger.setLevel(logging.INFO)
@@ -103,7 +155,14 @@ def test_reschedule_interview_updates_time_recruiter_notes_and_status(tmp_path) 
     session = build_test_session(tmp_path / "reschedule_test.db")
 
     applicant_service = ApplicantService(session=session)
-    applicant = applicant_service.create(name="Pat Doe", email="pat@example.com")
+    organization_id, client_id, job_order_id = _create_foundation(session)
+    applicant = applicant_service.create(
+        organization_id=organization_id,
+        client_id=client_id,
+        job_order_id=job_order_id,
+        name="Pat Doe",
+        email="pat@example.com",
+    )
 
     scheduler = InterviewSchedulerService(session=session)
     interview = scheduler.schedule_interview(
@@ -137,7 +196,14 @@ def test_schedule_interview_validates_datetime_format(tmp_path) -> None:
     session = build_test_session(tmp_path / "schedule_invalid_datetime.db")
 
     applicant_service = ApplicantService(session=session)
-    applicant = applicant_service.create(name="Jamie Doe", email="jamie@example.com")
+    organization_id, client_id, job_order_id = _create_foundation(session)
+    applicant = applicant_service.create(
+        organization_id=organization_id,
+        client_id=client_id,
+        job_order_id=job_order_id,
+        name="Jamie Doe",
+        email="jamie@example.com",
+    )
 
     scheduler = InterviewSchedulerService(session=session)
 

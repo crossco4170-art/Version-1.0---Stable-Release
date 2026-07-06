@@ -1,47 +1,321 @@
-from pathlib import Path
+from __future__ import annotations
 
-from database import initialize_database
+import pytest
+
+from models.applicant import ApplicantPipelineStage
+from models.client import Client
+from models.job_order import JobOrder
+from models.organization import Organization, OrganizationStatus
 from services.applicant_service import ApplicantService
+from tests.helpers import build_test_session
+from utils.exceptions import BlackcrestInputError
 
 
-def test_applicant_crud_and_search(tmp_path: Path) -> None:
-    database_path = tmp_path / "applicants.db"
-    initialize_database(str(database_path))
+def _create_foundation(session):
+    organization = Organization(
+        name="Greater Connections Staffing",
+        legal_name="Greater Connections Staffing LLC",
+        status=OrganizationStatus.ACTIVE,
+    )
+    session.add(organization)
+    session.commit()
 
-    service = ApplicantService(database_url=str(database_path))
+    client = Client(
+        organization_id=organization.id,
+        company_name="USPS",
+    )
+    session.add(client)
+    session.commit()
 
-    created = service.create_applicant(
-        name="Jane Doe",
-        phone="555-1234",
+    job_order = JobOrder(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_code="USPS-RCA-2026-001",
+        title="Rural Carrier Associate",
+    )
+    session.add(job_order)
+    session.commit()
+
+    return organization, client, job_order
+
+
+def test_create_applicant(tmp_path) -> None:
+    session = build_test_session(tmp_path / "applicant_service_create.db")
+    service = ApplicantService(session=session)
+    organization, client, job_order = _create_foundation(session)
+
+    applicant = service.create_applicant(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_order_id=job_order.id,
+        first_name="Jane",
+        last_name="Doe",
         email="jane@example.com",
-        address="123 Main St",
-        drivers_license_status="valid",
-        experience="3 years",
-        resume_location="/resumes/jane.pdf",
-        current_status="new",
-        notes="Strong candidate",
-        score=91.5,
     )
 
-    assert created.id is not None
-    assert created.email == "jane@example.com"
+    assert applicant.id is not None
+    assert applicant.organization_id == organization.id
 
-    updated = service.edit_applicant(
-        created.id,
-        current_status="screened",
-        notes="Updated note",
-        score=95.0,
+
+def test_organization_ownership_validation(tmp_path) -> None:
+    session = build_test_session(tmp_path / "applicant_service_org_ownership.db")
+    service = ApplicantService(session=session)
+
+    org_a, _, _ = _create_foundation(session)
+    org_b = Organization(
+        name="Next Horizon Staffing",
+        legal_name="Next Horizon Staffing LLC",
+        status=OrganizationStatus.ACTIVE,
     )
-    assert updated is not None
-    assert updated.current_status == "screened"
-    assert updated.notes == "Updated note"
+    session.add(org_b)
+    session.commit()
 
-    found = service.search_applicants("Jane")
-    assert len(found) == 1
+    client = Client(organization_id=org_a.id, company_name="Amazon")
+    session.add(client)
+    session.commit()
 
-    all_applicants = service.list_applicants()
-    assert len(all_applicants) == 1
+    job_order = JobOrder(
+        organization_id=org_a.id,
+        client_id=client.id,
+        job_code="AMZ-DRV-2026-001",
+        title="Driver",
+    )
+    session.add(job_order)
+    session.commit()
 
-    deleted = service.delete_applicant(created.id)
-    assert deleted is True
-    assert service.get_applicant(created.id) is None
+    with pytest.raises(BlackcrestInputError):
+        service.create_applicant(
+            organization_id=org_b.id,
+            client_id=client.id,
+            job_order_id=job_order.id,
+            name="Jane Doe",
+        )
+
+
+def test_client_ownership_validation(tmp_path) -> None:
+    session = build_test_session(tmp_path / "applicant_service_client_ownership.db")
+    service = ApplicantService(session=session)
+    organization, _, _ = _create_foundation(session)
+
+    client = Client(organization_id=organization.id, company_name="FedEx")
+    session.add(client)
+    session.commit()
+
+    other_client = Client(organization_id=organization.id, company_name="UPS")
+    session.add(other_client)
+    session.commit()
+
+    job_order = JobOrder(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_code="FDX-DRV-2026-001",
+        title="Driver",
+    )
+    session.add(job_order)
+    session.commit()
+
+    with pytest.raises(BlackcrestInputError):
+        service.create_applicant(
+            organization_id=organization.id,
+            client_id=other_client.id,
+            job_order_id=job_order.id,
+            name="Jane Doe",
+        )
+
+
+def test_job_order_ownership_validation(tmp_path) -> None:
+    session = build_test_session(tmp_path / "applicant_service_job_order_ownership.db")
+    service = ApplicantService(session=session)
+    organization, client, _ = _create_foundation(session)
+
+    other_client = Client(organization_id=organization.id, company_name="Amazon")
+    session.add(other_client)
+    session.commit()
+
+    job_order = JobOrder(
+        organization_id=organization.id,
+        client_id=other_client.id,
+        job_code="AMZ-DRV-2026-001",
+        title="Driver",
+    )
+    session.add(job_order)
+    session.commit()
+
+    with pytest.raises(BlackcrestInputError):
+        service.create_applicant(
+            organization_id=organization.id,
+            client_id=client.id,
+            job_order_id=job_order.id,
+            name="Jane Doe",
+        )
+
+
+def test_list_by_organization(tmp_path) -> None:
+    session = build_test_session(tmp_path / "applicant_service_list_org.db")
+    service = ApplicantService(session=session)
+    organization, client, job_order = _create_foundation(session)
+
+    service.create_applicant(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_order_id=job_order.id,
+        name="Alice Doe",
+    )
+    service.create_applicant(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_order_id=job_order.id,
+        name="Bob Doe",
+    )
+
+    applicants = service.list_by_organization(organization.id)
+
+    assert len(applicants) == 2
+
+
+def test_list_by_client(tmp_path) -> None:
+    session = build_test_session(tmp_path / "applicant_service_list_client.db")
+    service = ApplicantService(session=session)
+    organization, client, job_order = _create_foundation(session)
+
+    service.create_applicant(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_order_id=job_order.id,
+        name="Alice Doe",
+    )
+
+    applicants = service.list_by_client(client.id)
+
+    assert len(applicants) == 1
+    assert applicants[0].client_id == client.id
+
+
+def test_list_by_job_order(tmp_path) -> None:
+    session = build_test_session(tmp_path / "applicant_service_list_job_order.db")
+    service = ApplicantService(session=session)
+    organization, client, job_order = _create_foundation(session)
+
+    service.create_applicant(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_order_id=job_order.id,
+        name="Alice Doe",
+    )
+
+    applicants = service.list_by_job_order(job_order.id)
+
+    assert len(applicants) == 1
+    assert applicants[0].job_order_id == job_order.id
+
+
+def test_list_by_pipeline_stage(tmp_path) -> None:
+    session = build_test_session(tmp_path / "applicant_service_list_stage.db")
+    service = ApplicantService(session=session)
+    organization, client, job_order = _create_foundation(session)
+
+    service.create_applicant(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_order_id=job_order.id,
+        name="Alice Doe",
+        pipeline_stage=ApplicantPipelineStage.NEW,
+    )
+    service.create_applicant(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_order_id=job_order.id,
+        name="Bob Doe",
+        pipeline_stage=ApplicantPipelineStage.UNDER_REVIEW,
+    )
+
+    applicants = service.list_by_pipeline_stage(ApplicantPipelineStage.NEW)
+
+    assert len(applicants) == 1
+    assert applicants[0].pipeline_stage == ApplicantPipelineStage.NEW
+
+
+def test_update_applicant(tmp_path) -> None:
+    session = build_test_session(tmp_path / "applicant_service_update.db")
+    service = ApplicantService(session=session)
+    organization, client, job_order = _create_foundation(session)
+
+    applicant = service.create_applicant(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_order_id=job_order.id,
+        name="Alice Doe",
+    )
+
+    updated = service.update_applicant(
+        applicant.id,
+        first_name="Alicia",
+        city="Milwaukee",
+        state="WI",
+        notes="Updated",
+    )
+
+    assert updated.first_name == "Alicia"
+    assert updated.city == "Milwaukee"
+    assert updated.state == "WI"
+    assert updated.notes == "Updated"
+
+
+def test_resume_score_validation(tmp_path) -> None:
+    session = build_test_session(tmp_path / "applicant_service_resume_score.db")
+    service = ApplicantService(session=session)
+    organization, client, job_order = _create_foundation(session)
+
+    applicant = service.create_applicant(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_order_id=job_order.id,
+        name="Alice Doe",
+    )
+
+    with pytest.raises(BlackcrestInputError):
+        service.update_resume_score(applicant.id, 101)
+
+    scored = service.update_resume_score(applicant.id, 88)
+    assert scored.resume_score == 88
+
+
+def test_valid_pipeline_transitions(tmp_path) -> None:
+    session = build_test_session(tmp_path / "applicant_service_valid_transitions.db")
+    service = ApplicantService(session=session)
+    organization, client, job_order = _create_foundation(session)
+
+    applicant = service.create_applicant(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_order_id=job_order.id,
+        name="Alice Doe",
+    )
+
+    applicant = service.move_pipeline_stage(applicant.id, ApplicantPipelineStage.UNDER_REVIEW)
+    applicant = service.move_pipeline_stage(applicant.id, ApplicantPipelineStage.PHONE_SCREEN)
+    applicant = service.move_pipeline_stage(applicant.id, ApplicantPipelineStage.INTERVIEW)
+
+    assert applicant.pipeline_stage == ApplicantPipelineStage.INTERVIEW
+
+
+def test_invalid_pipeline_transitions(tmp_path) -> None:
+    session = build_test_session(tmp_path / "applicant_service_invalid_transitions.db")
+    service = ApplicantService(session=session)
+    organization, client, job_order = _create_foundation(session)
+
+    applicant = service.create_applicant(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_order_id=job_order.id,
+        name="Alice Doe",
+    )
+
+    with pytest.raises(BlackcrestInputError):
+        service.move_pipeline_stage(applicant.id, ApplicantPipelineStage.INTERVIEW)
+
+    moved = service.move_pipeline_stage(applicant.id, ApplicantPipelineStage.UNDER_REVIEW)
+    moved = service.move_pipeline_stage(moved.id, ApplicantPipelineStage.REJECTED)
+
+    with pytest.raises(BlackcrestInputError):
+        service.move_pipeline_stage(moved.id, ApplicantPipelineStage.PHONE_SCREEN)
