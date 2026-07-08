@@ -11,6 +11,7 @@ from .hiring_status_service import HiringStatusService
 from .interview_service import InterviewService
 from .interview_scheduler_service import CalendarProvider, InterviewSchedulerService
 from .job_order_service import JobOrderService
+from .organization_service import OrganizationService
 from .reporting_service import ReportingService
 from .score_event_hook import CandidateScoredEvent, CandidateScoreEventHook, CandidateScoreListener
 from .seed_admin import bootstrap_admin_user, seed_admin_user
@@ -30,6 +31,7 @@ __all__ = [
     "InterviewSchedulerService",
     "CalendarProvider",
     "JobOrderService",
+    "OrganizationService",
     "ReportingService",
     "CandidateScoredEvent",
     "CandidateScoreEventHook",
