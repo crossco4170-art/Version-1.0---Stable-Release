@@ -1,6 +1,7 @@
 """Service layer package for BlackcrestRecruitOS."""
 
 from .activity_log_service import ActivityLogService
+from .ai import AIResumeIntelligenceService, ResumeParser, ResumeProfile
 from .admin_user_service import AdminUserService
 from .applicant_service import ApplicantService
 from .base_service import BaseCRUDService
@@ -16,6 +17,9 @@ from .seed_admin import bootstrap_admin_user, seed_admin_user
 
 __all__ = [
     "ActivityLogService",
+    "AIResumeIntelligenceService",
+    "ResumeParser",
+    "ResumeProfile",
     "AdminUserService",
     "ApplicantService",
     "BaseCRUDService",
