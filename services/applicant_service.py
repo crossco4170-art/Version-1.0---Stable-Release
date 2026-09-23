@@ -18,7 +18,7 @@ class ApplicantService:
     """Simple, clean CRUD and search service for applicant records."""
 
     def __init__(self, session: Session | None = None, database_url: str | None = None) -> None:
-        self.session = session or get_session(database_url=database_url, ensure_schema=True)
+        self.session = session or get_session(database_url=database_url)
 
     # ---------------------------------------------------------------------
     # Validation

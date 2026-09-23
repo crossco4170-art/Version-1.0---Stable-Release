@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import sqlite3
+
 import pytest
 
+from config.settings import Settings
+import database.connection as database_connection
+from database.init_db import initialize_database
 from models.applicant import ApplicantPipelineStage
 from models.client import Client
 from models.job_order import JobOrder
@@ -9,6 +14,46 @@ from models.organization import Organization, OrganizationStatus
 from services.applicant_service import ApplicantService
 from tests.helpers import build_test_session
 from utils.exceptions import BlackcrestInputError
+
+
+def test_service_construction_does_not_initialize_schema(tmp_path, monkeypatch) -> None:
+    database_path = tmp_path / "service_without_schema.db"
+    monkeypatch.setattr(
+        database_connection,
+        "get_settings",
+        lambda: Settings(database_url=str(database_path)),
+    )
+
+    service = ApplicantService()
+
+    assert service.session is not None
+    with sqlite3.connect(database_path) as connection:
+        tables = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        ).fetchall()
+    assert tables == []
+
+
+def test_service_reads_from_explicitly_initialized_database(tmp_path) -> None:
+    database_path = tmp_path / "service_initialized.db"
+    initialize_database(str(database_path))
+    session = build_test_session(database_path)
+    organization, client, job_order = _create_foundation(session)
+    applicant = ApplicantService(session=session).create_applicant(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_order_id=job_order.id,
+        name="Initialized Applicant",
+        email="initialized@example.com",
+    )
+    session.close()
+
+    service = ApplicantService(database_url=str(database_path))
+
+    loaded = service.get_applicant(applicant.id)
+
+    assert loaded is not None
+    assert loaded.name == "Initialized Applicant"
 
 
 def _create_foundation(session):

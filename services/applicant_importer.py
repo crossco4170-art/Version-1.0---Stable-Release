@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from database.init_db import initialize_database
 from services.applicant_service import ApplicantService
 from utils.exceptions import BlackcrestInputError
 
@@ -13,6 +14,7 @@ class ApplicantImporter:
     """Minimal CSV importer for applicant records with validation and normalization."""
 
     def __init__(self, database_url: str | None = None) -> None:
+        initialize_database(database_url)
         self.service = ApplicantService(database_url=database_url)
 
     @staticmethod

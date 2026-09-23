@@ -1,7 +1,16 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from app.app_state import AppState
 from controllers.applicant_workspace_controller import ApplicantWorkspaceController
+from models.applicant import ApplicantPipelineStage
+from models.client import Client
+from models.job_order import JobOrder
+from models.organization import Organization, OrganizationStatus
+from services.applicant_service import ApplicantService
+from tests.helpers import build_test_session
+from utils.exceptions import BlackcrestInputError
 
 
 class _FakeView:
@@ -50,83 +59,145 @@ class _FakeView:
         self.history_payload = None
 
 
-def test_controller_initializes() -> None:
-    controller = ApplicantWorkspaceController()
+def _seed_applicant_record(tmp_path, *, name: str = "Riley Chen", email: str = "riley@example.com"):
+    session = build_test_session(tmp_path / "workspace_controller_real.db")
+    service = ApplicantService(session=session)
 
-    assert controller is not None
+    organization = Organization(
+        name="Greater Connections Staffing",
+        legal_name="Greater Connections Staffing LLC",
+        status=OrganizationStatus.ACTIVE,
+    )
+    session.add(organization)
+    session.commit()
+
+    client = Client(organization_id=organization.id, company_name="USPS")
+    session.add(client)
+    session.commit()
+
+    job_order = JobOrder(
+        organization_id=organization.id,
+        client_id=client.id,
+        title="Carrier Associate",
+        job_code="USPS-CA-100",
+    )
+    session.add(job_order)
+    session.commit()
+
+    applicant = service.create_applicant(
+        organization_id=organization.id,
+        client_id=client.id,
+        job_order_id=job_order.id,
+        name=name,
+        first_name=name.split()[0],
+        last_name=name.split()[-1],
+        email=email,
+        phone="(414) 555-0101",
+        city="Milwaukee",
+        state="WI",
+        resume_filename=f"{name.lower().replace(' ', '_')}.pdf",
+        resume_path=f"/tmp/{name.lower().replace(' ', '_')}.pdf",
+        pipeline_stage=ApplicantPipelineStage.UNDER_REVIEW,
+        applied_at=datetime(2026, 7, 5, 9, 30, 0),
+        address="123 Alder St",
+        current_status="UNDER_REVIEW",
+        notes="Real applicant data",
+        score=88.0,
+    )
+
+    return service, applicant
 
 
-def test_load_mock_applicant_returns_deterministic_profile() -> None:
-    controller = ApplicantWorkspaceController()
+def test_controller_loads_selected_applicant_from_real_service(tmp_path) -> None:
+    service, applicant = _seed_applicant_record(tmp_path)
+    state = AppState()
+    state.set_selected_applicant(applicant.id)
+    view = _FakeView()
 
-    profile = controller.load_mock_applicant()
-
-    assert profile["name"] == "Jordan Miles"
-    assert profile["email"] == "jordan.miles@example.com"
-    assert profile["phone"] == "(414) 555-0148"
-    assert profile["location"] == "Milwaukee, WI"
-    assert profile["job_order"] == "USPS Carrier Associate"
-    assert profile["client"] == "USPS"
-    assert profile["pipeline_stage"] == "REVIEW"
-    assert profile["applied_date"] == "2026-07-05"
-    assert profile["recruiter"] == "Current Recruiter"
-    assert profile["resume_filename"] == "jordan_miles_resume.pdf"
-
-
-def test_workspace_loads_with_all_sections_populated() -> None:
-    controller = ApplicantWorkspaceController()
+    controller = ApplicantWorkspaceController(view=view, app_state=state, app_service=service)
 
     payload = controller.load_workspace()
 
-    assert payload["applicant_summary"]["applicant_name"] == "Jordan Miles"
-    assert payload["overview"]["name"] == "Jordan Miles"
-    assert payload["resume_metadata"]["file_name"] == "jordan_miles_resume.pdf"
-    assert len(payload["history"]) > 0
-    assert len(payload["timeline"]) > 0
-    assert len(payload["tasks"]) > 0
-    assert len(payload["documents"]) > 0
-
-
-def test_header_remains_synchronized_with_mock_data() -> None:
-    view = _FakeView()
-    controller = ApplicantWorkspaceController(view=view)
-
-    controller.load_workspace()
-
+    assert payload["applicant_summary"]["applicant_name"] == applicant.name
+    assert payload["overview"]["name"] == applicant.name
+    assert payload["resume_metadata"]["file_name"] == applicant.resume_filename
+    assert payload["overview"]["pipeline_stage"] == applicant.pipeline_stage.value
     assert view.last_header_payload is not None
-    assert view.last_header_payload["applicant_name"] == "Jordan Miles"
-    assert view.overview_payload is not None
-    assert view.overview_payload["name"] == "Jordan Miles"
+    assert view.last_header_payload["applicant_name"] == applicant.name
 
 
-def test_all_sections_are_pushed_to_view() -> None:
-    view = _FakeView()
-    controller = ApplicantWorkspaceController(view=view)
-
-    controller.load_workspace()
-
-    assert view.overview_payload is not None
-    assert view.timeline_payload is not None and len(view.timeline_payload) > 0
-    assert view.tasks_payload is not None and len(view.tasks_payload) > 0
-    assert view.documents_payload is not None and len(view.documents_payload) > 0
-    assert view.resume_metadata_payload is not None
-    assert view.history_payload is not None and len(view.history_payload) > 0
-
-
-def test_clearing_app_state_clears_workspace() -> None:
-    view = _FakeView()
-    controller = ApplicantWorkspaceController(view=view)
+def test_controller_refreshes_when_selected_applicant_changes(tmp_path) -> None:
+    service, first = _seed_applicant_record(tmp_path, name="Riley Chen", email="riley@example.com")
+    second_service, second = _seed_applicant_record(
+        tmp_path,
+        name="Sam Park",
+        email="sam@example.com",
+    )
     state = AppState()
+    view = _FakeView()
+    controller = ApplicantWorkspaceController(view=view, app_state=state, app_service=service)
 
-    controller.bind_app_state(state)
-    state.set_selected_applicant(101)
+    state.set_selected_applicant(second.id)
+    controller.refresh_workspace()
 
-    assert controller.get_applicant_summary()["applicant_name"] == "Jordan Miles"
+    assert controller.get_applicant_summary()["applicant_name"] == second.name
+    assert view.last_header_payload["applicant_name"] == second.name
 
+
+def test_controller_clears_workspace_when_selection_is_none(tmp_path) -> None:
+    service, applicant = _seed_applicant_record(tmp_path)
+    state = AppState()
+    view = _FakeView()
+    controller = ApplicantWorkspaceController(view=view, app_state=state, app_service=service)
+
+    state.set_selected_applicant(applicant.id)
     state.set_selected_applicant(None)
 
-    assert view.clear_calls >= 1
     assert controller.get_applicant_summary()["applicant_name"] == "Placeholder Applicant"
     assert controller.get_timeline() == []
     assert controller.get_tasks() == []
     assert controller.get_documents() == []
+    assert view.clear_calls >= 1
+
+
+def test_controller_handles_missing_applicant_gracefully(tmp_path) -> None:
+    service, _ = _seed_applicant_record(tmp_path)
+    state = AppState()
+    state.set_selected_applicant(999999)
+    view = _FakeView()
+    controller = ApplicantWorkspaceController(view=view, app_state=state, app_service=service)
+
+    payload = controller.refresh_workspace()
+
+    assert payload["applicant_summary"]["applicant_name"] == "Applicant Not Found"
+    assert payload["overview"]["error"].startswith("Applicant 999999")
+
+
+def test_controller_handles_retrieval_error_cleanly(tmp_path) -> None:
+    class _ExplodingService:
+        def get_applicant(self, applicant_id: int):
+            raise BlackcrestInputError("invalid applicant id")
+
+    state = AppState()
+    state.set_selected_applicant(42)
+    view = _FakeView()
+    controller = ApplicantWorkspaceController(view=view, app_state=state, app_service=_ExplodingService())
+
+    payload = controller.refresh_workspace()
+
+    assert payload["applicant_summary"]["applicant_name"] == "Workspace unavailable"
+    assert payload["overview"]["error"] == "invalid applicant id"
+
+
+def test_controller_default_service_uses_preinitialized_database(tmp_path, monkeypatch) -> None:
+    service, applicant = _seed_applicant_record(tmp_path)
+    monkeypatch.setattr(
+        "controllers.applicant_workspace_controller.ApplicantService",
+        lambda: ApplicantService(session=service.session),
+    )
+    state = AppState()
+    state.set_selected_applicant(applicant.id)
+
+    controller = ApplicantWorkspaceController(app_state=state)
+
+    assert controller.get_applicant_summary()["applicant_name"] == applicant.name
