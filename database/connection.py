@@ -6,7 +6,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from database.base import Base
 from config.settings import get_settings
 
 
@@ -29,6 +28,8 @@ def get_session(database_url: str | None = None, ensure_schema: bool = False) ->
     """Create a database session for the configured engine."""
     engine = get_engine(database_url)
     if ensure_schema:
-        Base.metadata.create_all(bind=engine)
+        from database.init_db import initialize_database
+
+        engine = initialize_database(database_url)
     session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     return session_factory()

@@ -4,7 +4,10 @@ from datetime import datetime
 
 import customtkinter as ctk
 
+from app.app_state import AppState
 from app.navigation import NavigationController
+from controllers.applicant_workspace_controller import ApplicantWorkspaceController
+from desktop.recruiting_dashboard import RecruitingDashboard
 from views.applicant_workspace_view import ApplicantWorkspaceView
 from views.clients_view import ClientsView
 from views.dashboard_view import DashboardView
@@ -30,6 +33,7 @@ class RecruitOSMainWindow(ctk.CTk):
 
     def __init__(self) -> None:
         super().__init__()
+        self.app_state = AppState()
         self.title("Blackcrest RecruitOS")
         self.geometry("1400x860")
         self.minsize(1120, 700)
@@ -122,8 +126,11 @@ class RecruitOSMainWindow(ctk.CTk):
         self.navigation_controller = NavigationController(self.content_area)
         self.navigation_buttons: dict[str, ctk.CTkButton] = {}
 
-        self.navigation_controller.register("dashboard", lambda parent: DashboardView(parent))
-        self.navigation_controller.register("applicants", lambda parent: ApplicantWorkspaceView(parent))
+        self.navigation_controller.register("dashboard", lambda parent: self._build_dashboard(parent))
+        self.navigation_controller.register(
+            "applicants",
+            lambda parent: self._build_applicant_workspace(parent),
+        )
         self.navigation_controller.register("job_orders", lambda parent: JobOrdersView(parent))
         self.navigation_controller.register("clients", lambda parent: ClientsView(parent))
         self.navigation_controller.register("reports", lambda parent: ReportsView(parent))
@@ -145,6 +152,21 @@ class RecruitOSMainWindow(ctk.CTk):
             self.navigation_buttons[key] = button
 
         self.show_view("dashboard")
+
+    def _build_applicant_workspace(self, parent: ctk.CTkFrame) -> ctk.CTkFrame:
+        view = ApplicantWorkspaceView(parent)
+        self.applicant_workspace_controller = ApplicantWorkspaceController(
+            view=view,
+            app_state=self.app_state,
+        )
+        return view
+
+    def _build_dashboard(self, parent: ctk.CTkFrame) -> ctk.CTkFrame:
+        return RecruitingDashboard(
+            parent,
+            app_state=self.app_state,
+            on_applicant_selected=lambda _: self.show_view("applicants"),
+        )
 
     def _build_status_bar(self) -> None:
         self.status_bar = ctk.CTkFrame(self, fg_color="#ffffff", corner_radius=0, height=34)

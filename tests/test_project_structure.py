@@ -7,6 +7,7 @@ def test_project_structure_files_exist() -> None:
         Path("README.md"),
         Path("requirements.txt"),
         Path(".env.example"),
+        Path("api"),
         Path("config"),
         Path("database"),
         Path("logs"),

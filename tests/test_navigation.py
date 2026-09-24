@@ -7,6 +7,7 @@ import pytest
 customtkinter = pytest.importorskip("customtkinter")
 
 from app.main_window import RecruitOSMainWindow
+from desktop.recruiting_dashboard import RecruitingDashboard
 from views.applicant_workspace_view import ApplicantWorkspaceView
 from views.clients_view import ClientsView
 from views.dashboard_view import DashboardView
@@ -38,7 +39,7 @@ def test_navigation_initializes(window: RecruitOSMainWindow) -> None:
 
 def test_every_navigation_item_loads_correct_placeholder(window: RecruitOSMainWindow) -> None:
     expected = {
-        "dashboard": DashboardView,
+        "dashboard": RecruitingDashboard,
         "applicants": ApplicantWorkspaceView,
         "job_orders": JobOrdersView,
         "clients": ClientsView,

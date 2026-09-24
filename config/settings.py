@@ -26,13 +26,23 @@ class Settings(BaseSettings):
         },
     }
 
-    app_name: str = Field(default="BlackcrestRecruitOS")
+    app_name: str = Field(default="BlackcrestRecruitOS", alias="APP_NAME")
     app_env: str = Field(default="development", alias="APP_ENV")
-    debug: bool = Field(default=False)
+    app_version: str = Field(default="v2.0-shell", alias="APP_VERSION")
+    debug: bool = Field(default=False, alias="DEBUG")
     secret_key: str = Field(default="change-me")
 
     database_path: str = Field(default="./blackcrest.db", alias="DATABASE_PATH")
-    database_url: str = Field(default="sqlite:///./blackcrest.db")
+    database_url: str = Field(default="", alias="DATABASE_URL")
+
+    wix_api_key: str = Field(default="", alias="WIX_API_KEY")
+    wix_site_id: str = Field(default="", alias="WIX_SITE_ID")
+    wix_account_id: str = Field(default="", alias="WIX_ACCOUNT_ID")
+    wix_webhook_secret: str = Field(default="", alias="WIX_WEBHOOK_SECRET")
+
+    google_client_id: str = Field(default="", alias="GOOGLE_CLIENT_ID")
+    google_client_secret: str = Field(default="", alias="GOOGLE_CLIENT_SECRET")
+    google_refresh_token: str = Field(default="", alias="GOOGLE_REFRESH_TOKEN")
 
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
     openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
@@ -100,9 +110,16 @@ class Settings(BaseSettings):
     def __init__(self, **data: Any) -> None:
         validate_required = data.pop("validate_required", False)
         super().__init__(**data)
-        self.database_url = f"sqlite:///{self.database_path}"
+        if not str(self.database_url).strip():
+            self.database_url = self._build_database_url(self.database_path)
         if validate_required:
             self.validate_required_settings()
+
+    @staticmethod
+    def _build_database_url(database_path: str) -> str:
+        if database_path.startswith("sqlite://"):
+            return database_path
+        return f"sqlite:///{database_path}"
 
     def validate_required_settings(self) -> None:
         self.validate_openai_settings()
@@ -147,3 +164,6 @@ def get_settings(validate_required: bool = False) -> Settings:
     if validate_required:
         settings.validate_required_settings()
     return settings
+
+
+settings = get_settings(validate_required=False)

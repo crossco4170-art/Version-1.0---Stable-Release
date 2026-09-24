@@ -1,40 +1,41 @@
 from __future__ import annotations
 
+from typing import Any
+
+from models.applicant import Applicant
+from services.applicant_service import ApplicantService
+from utils.exceptions import BlackcrestInputError, BlackcrestNotFoundError
+
 
 class ApplicantWorkspaceController:
-    """Coordinates placeholder workspace data without business or data-source logic."""
+    """Coordinates the real applicant workspace data path from AppState into the view."""
 
-    def __init__(self, view: object | None = None) -> None:
+    def __init__(
+        self,
+        view: object | None = None,
+        app_state: object | None = None,
+        app_service: ApplicantService | None = None,
+    ) -> None:
         self._workspace_data = self._build_cleared_workspace_payload()
         self._view = view
-        self._app_state = None
+        self._app_state = app_state
+        self._app_service = app_service or ApplicantService()
+        self._last_error: str | None = None
 
-        self._mock_applicant = {
-            "name": "Jordan Miles",
-            "email": "jordan.miles@example.com",
-            "phone": "(414) 555-0148",
-            "location": "Milwaukee, WI",
-            "job_order": "USPS Carrier Associate",
-            "client": "USPS",
-            "pipeline_stage": "REVIEW",
-            "applied_date": "2026-07-05",
-            "recruiter": "Current Recruiter",
-            "resume_filename": "jordan_miles_resume.pdf",
-        }
+        if self._app_state is not None:
+            self.bind_app_state(self._app_state)
 
     def load_workspace(self) -> dict[str, object]:
-        self._workspace_data = self._build_workspace_payload(self.load_mock_applicant())
-        self._sync_view_with_workspace()
-        return dict(self._workspace_data)
+        selected_id = self._get_selected_applicant_id()
+        if selected_id is None:
+            return self.clear_workspace()
+        return self.load_selected_applicant(selected_id)
 
     def refresh_workspace(self) -> dict[str, object]:
         selected_id = self._get_selected_applicant_id()
-        if selected_id is None and self._app_state is not None:
+        if selected_id is None:
             return self.clear_workspace()
-        return self.load_workspace()
-
-    def load_mock_applicant(self) -> dict[str, object]:
-        return dict(self._mock_applicant)
+        return self.load_selected_applicant(selected_id)
 
     def bind_app_state(self, app_state: object) -> None:
         self._app_state = app_state
@@ -52,11 +53,28 @@ class ApplicantWorkspaceController:
         return dict(summary)
 
     def clear_workspace(self) -> dict[str, object]:
+        self._last_error = None
         self._workspace_data = self._build_cleared_workspace_payload()
         if self._view is not None and hasattr(self._view, "clear_workspace"):
             self._view.clear_workspace()
         elif self._view is not None and hasattr(self._view, "clear_header"):
             self._view.clear_header()
+        return dict(self._workspace_data)
+
+    def load_selected_applicant(self, applicant_id: int) -> dict[str, object]:
+        try:
+            applicant = self._app_service.get_applicant(applicant_id)
+        except (BlackcrestInputError, BlackcrestNotFoundError, ValueError, TypeError, RuntimeError) as exc:
+            self._last_error = str(exc)
+            return self._render_error_state(str(exc))
+
+        if applicant is None:
+            self._last_error = f"Applicant not found: {applicant_id}"
+            return self._render_not_found_state(applicant_id)
+
+        self._last_error = None
+        self._workspace_data = self._build_workspace_payload(applicant)
+        self._sync_view_with_workspace()
         return dict(self._workspace_data)
 
     def get_applicant_summary(self) -> dict[str, object]:
@@ -109,86 +127,134 @@ class ApplicantWorkspaceController:
             return self._app_state.get_selected_applicant()
         return None
 
-    def _build_workspace_payload(self, profile: dict[str, object]) -> dict[str, object]:
+    def _render_not_found_state(self, applicant_id: int) -> dict[str, object]:
+        self._workspace_data = self._build_cleared_workspace_payload()
+        self._workspace_data["applicant_summary"] = {
+            "applicant_name": "Applicant Not Found",
+            "email": "",
+            "phone": "",
+            "pipeline_stage": "UNKNOWN",
+            "assigned_recruiter": "",
+            "job_order": "",
+            "client": "",
+            "location": "",
+            "applied_date": "",
+            "resume_metadata": {"file_name": "", "uploaded_at": "", "source": ""},
+            "interview_history": [],
+            "applicant_id": applicant_id,
+        }
+        self._workspace_data["overview"] = {"name": "Applicant Not Found", "error": f"Applicant {applicant_id} not found."}
+        self._workspace_data["resume_metadata"] = {"file_name": "", "uploaded_at": "", "source": ""}
+        self._workspace_data["history"] = []
+        self._workspace_data["timeline"] = []
+        self._workspace_data["tasks"] = []
+        self._workspace_data["documents"] = []
+        if self._view is not None and hasattr(self._view, "clear_workspace"):
+            self._view.clear_workspace()
+        elif self._view is not None and hasattr(self._view, "clear_header"):
+            self._view.clear_header()
+        return dict(self._workspace_data)
+
+    def _render_error_state(self, message: str) -> dict[str, object]:
+        self._workspace_data = self._build_cleared_workspace_payload()
+        self._workspace_data["applicant_summary"] = {
+            "applicant_name": "Workspace unavailable",
+            "email": "",
+            "phone": "",
+            "pipeline_stage": "ERROR",
+            "assigned_recruiter": "",
+            "job_order": "",
+            "client": "",
+            "location": "",
+            "applied_date": "",
+            "resume_metadata": {"file_name": "", "uploaded_at": "", "source": ""},
+            "interview_history": [],
+            "error": message,
+        }
+        self._workspace_data["overview"] = {"name": "Workspace unavailable", "error": message}
+        self._workspace_data["resume_metadata"] = {"file_name": "", "uploaded_at": "", "source": ""}
+        self._workspace_data["history"] = []
+        self._workspace_data["timeline"] = []
+        self._workspace_data["tasks"] = []
+        self._workspace_data["documents"] = []
+        if self._view is not None and hasattr(self._view, "clear_workspace"):
+            self._view.clear_workspace()
+        elif self._view is not None and hasattr(self._view, "clear_header"):
+            self._view.clear_header()
+        return dict(self._workspace_data)
+
+    def _build_workspace_payload(self, applicant: Applicant) -> dict[str, object]:
+        applicant_name = self._coalesce_value(
+            getattr(applicant, "name", None),
+            " ".join(
+                part for part in (getattr(applicant, "first_name", None), getattr(applicant, "last_name", None)) if part
+            ),
+            "Unknown Applicant",
+        )
+        city = getattr(applicant, "city", None) or ""
+        state = getattr(applicant, "state", None) or ""
+        location = ", ".join(part for part in (city, state) if part) if city or state else ""
+
+        job_order_name = ""
+        job_order = getattr(applicant, "job_order", None)
+        if job_order is not None:
+            job_order_name = getattr(job_order, "title", None) or getattr(job_order, "job_code", None) or ""
+
+        client_name = ""
+        client = getattr(applicant, "client", None)
+        if client is not None:
+            client_name = getattr(client, "company_name", None) or getattr(client, "name", None) or ""
+
+        pipeline_stage = getattr(applicant, "pipeline_stage", None)
+        pipeline_stage_value = pipeline_stage.value if hasattr(pipeline_stage, "value") else str(pipeline_stage or "NEW")
+        applied_at = getattr(applicant, "applied_at", None)
+        applied_date = applied_at.isoformat() if hasattr(applied_at, "isoformat") else str(applied_at or "")
+        date_added = getattr(applicant, "date_added", None)
+        uploaded_at = date_added.isoformat() if hasattr(date_added, "isoformat") else str(date_added or "")
+
         summary = {
-            "applicant_name": profile["name"],
-            "email": profile["email"],
-            "phone": profile["phone"],
-            "pipeline_stage": profile["pipeline_stage"],
-            "assigned_recruiter": profile["recruiter"],
-            "job_order": profile["job_order"],
-            "client": profile["client"],
-            "location": profile["location"],
-            "applied_date": profile["applied_date"],
+            "applicant_name": applicant_name,
+            "email": getattr(applicant, "email", None) or "",
+            "phone": getattr(applicant, "phone", None) or "",
+            "pipeline_stage": pipeline_stage_value,
+            "assigned_recruiter": "Current Recruiter",
+            "job_order": job_order_name,
+            "client": client_name,
+            "location": location,
+            "applied_date": applied_date,
             "resume_metadata": {
-                "file_name": profile["resume_filename"],
-                "uploaded_at": "2026-07-05T08:40:00",
-                "source": "manual_upload",
+                "file_name": getattr(applicant, "resume_filename", None) or "",
+                "uploaded_at": uploaded_at,
+                "source": "database",
             },
-            "interview_history": [
-                {
-                    "stage": "intro_screen",
-                    "status": "completed",
-                    "date": "2026-07-06",
-                    "notes": "Completed recruiter intro call with positive candidate response.",
-                }
-            ],
+            "interview_history": [],
+        }
+
+        overview = {
+            "name": applicant_name,
+            "email": summary["email"],
+            "phone": summary["phone"],
+            "location": location,
+            "job_order": job_order_name,
+            "client": client_name,
+            "pipeline_stage": pipeline_stage_value,
+            "applied_date": applied_date,
+            "recruiter": "Current Recruiter",
         }
 
         return {
             "applicant_summary": summary,
-            "overview": {
-                "name": profile["name"],
-                "email": profile["email"],
-                "phone": profile["phone"],
-                "location": profile["location"],
-                "job_order": profile["job_order"],
-                "client": profile["client"],
-                "pipeline_stage": profile["pipeline_stage"],
-                "applied_date": profile["applied_date"],
-                "recruiter": profile["recruiter"],
-            },
+            "overview": overview,
             "resume_metadata": dict(summary["resume_metadata"]),
-            "history": list(summary["interview_history"]),
-            "timeline": [
-                {
-                    "event_type": "application_submitted",
-                    "timestamp": "2026-07-05T08:40:00",
-                    "actor": profile["name"],
-                    "notes": f"Applied to {profile['job_order']} ({profile['client']}).",
-                },
-                {
-                    "event_type": "resume_reviewed",
-                    "timestamp": "2026-07-05T13:25:00",
-                    "actor": profile["recruiter"],
-                    "notes": "Resume reviewed and moved to REVIEW stage.",
-                },
-            ],
-            "tasks": [
-                {
-                    "title": f"Call {profile['name']} for interview availability",
-                    "priority": "high",
-                    "status": "open",
-                    "due_at": "2026-07-08T10:00:00",
-                },
-                {
-                    "title": "Confirm valid driver documentation",
-                    "priority": "medium",
-                    "status": "open",
-                    "due_at": "2026-07-08T15:30:00",
-                },
-            ],
+            "history": [],
+            "timeline": [],
+            "tasks": [],
             "documents": [
                 {
                     "document_type": "resume",
-                    "file_name": profile["resume_filename"],
-                    "status": "available",
-                },
-                {
-                    "document_type": "drivers_license",
-                    "file_name": "jordan_miles_license.pdf",
-                    "status": "verified",
-                },
+                    "file_name": getattr(applicant, "resume_filename", None) or "",
+                    "status": "available" if getattr(applicant, "resume_filename", None) else "missing",
+                }
             ],
             "ai_placeholder": {
                 "recommendation": "placeholder",
@@ -199,7 +265,7 @@ class ApplicantWorkspaceController:
                 "missing_requirements": [],
             },
             "pipeline_controls": {
-                "current_stage": "REVIEW",
+                "current_stage": pipeline_stage_value,
                 "available_actions": ["move_stage", "hold", "schedule_interview"],
                 "status": "placeholder",
             },
@@ -215,23 +281,19 @@ class ApplicantWorkspaceController:
         return {
             "applicant_summary": {
                 "applicant_name": "Placeholder Applicant",
-                "email": "placeholder@example.com",
-                "phone": "(000) 000-0000",
+                "email": "",
+                "phone": "",
                 "pipeline_stage": "NEW",
-                "assigned_recruiter": "Current Recruiter",
-                "job_order": "Placeholder Job Order",
-                "client": "USPS",
-                "location": "Milwaukee, WI",
-                "applied_date": "2026-07-06",
-                "resume_metadata": {
-                    "file_name": "placeholder_resume.pdf",
-                    "uploaded_at": "2026-07-06T09:00:00",
-                    "source": "manual_upload",
-                },
+                "assigned_recruiter": "",
+                "job_order": "",
+                "client": "",
+                "location": "",
+                "applied_date": "",
+                "resume_metadata": {"file_name": "", "uploaded_at": "", "source": ""},
                 "interview_history": [],
             },
             "overview": {},
-            "resume_metadata": {},
+            "resume_metadata": {"file_name": "", "uploaded_at": "", "source": ""},
             "history": [],
             "timeline": [],
             "tasks": [],
@@ -256,3 +318,9 @@ class ApplicantWorkspaceController:
             ],
             "attachments": [],
         }
+
+    def _coalesce_value(self, *values: Any) -> Any:
+        for value in values:
+            if value not in (None, ""):
+                return value
+        return ""

@@ -7,6 +7,7 @@ from sqlalchemy.engine import Engine
 from config.settings import get_settings
 from database.base import Base
 from database.connection import normalize_database_url
+from database.schema_upgrade import upgrade_sqlite_schema
 
 
 MODEL_MODULES: tuple[str, ...] = (
@@ -39,4 +40,5 @@ def initialize_database(database_url: str | None = None) -> Engine:
     engine = create_engine(normalize_database_url(resolved_url), future=True)
     Base.metadata.bind = engine
     Base.metadata.create_all(bind=engine)
+    upgrade_sqlite_schema(engine)
     return engine
