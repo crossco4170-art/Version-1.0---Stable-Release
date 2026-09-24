@@ -1,12 +1,9 @@
 """Configuration package for BlackcrestRecruitOS."""
 
-from config.secrets import get_optional, get_required, validate_required
-from config.settings import Settings, settings
+from config.settings import Settings, get_settings, settings
 
 __all__ = [
-	"Settings",
-	"settings",
-	"get_required",
-	"get_optional",
-	"validate_required",
+    "Settings",
+    "get_settings",
+    "settings",
 ]

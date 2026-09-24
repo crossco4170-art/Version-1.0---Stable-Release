@@ -7,7 +7,6 @@ from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from config.secrets import get_optional, validate_required
 from config.settings import Settings, get_settings
 from utils.exceptions import BlackcrestConfigError, BlackcrestIntegrationError, BlackcrestInputError
 
@@ -32,10 +31,10 @@ class WixClient:
         self.settings = settings or get_settings(validate_required=False)
         self.urlopen_fn = urlopen_fn or urlopen
 
-        self.wix_api_key = str(get_optional("WIX_API_KEY", self.settings.wix_api_key) or "")
-        self.wix_site_id = str(get_optional("WIX_SITE_ID", self.settings.wix_site_id) or "")
-        self.wix_account_id = str(get_optional("WIX_ACCOUNT_ID", self.settings.wix_account_id) or "")
-        self.wix_webhook_secret = str(get_optional("WIX_WEBHOOK_SECRET", self.settings.wix_webhook_secret) or "")
+        self.wix_api_key = str(self.settings.wix_api_key or "")
+        self.wix_site_id = str(self.settings.wix_site_id or "")
+        self.wix_account_id = str(self.settings.wix_account_id or "")
+        self.wix_webhook_secret = str(self.settings.wix_webhook_secret or "")
 
         self.missing_required_secrets = self._find_missing_required_secrets()
 
@@ -148,11 +147,6 @@ class WixClient:
             )
 
     def _find_missing_required_secrets(self) -> list[str]:
-        try:
-            validate_required(*self.REQUIRED_SECRET_NAMES)
-        except BlackcrestConfigError:
-            pass
-
         mapping = {
             "WIX_API_KEY": self.wix_api_key,
             "WIX_SITE_ID": self.wix_site_id,

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import importlib
+
 import pytest
 
-from config.secrets import get_required, mask_secret, validate_required
-from config.settings import Settings
+from config.settings import Settings, get_settings
 from utils.exceptions import BlackcrestConfigError
 
 
@@ -22,6 +23,10 @@ _ENV_KEYS = [
     "GOOGLE_CLIENT_SECRET",
     "GOOGLE_REFRESH_TOKEN",
     "OPENAI_API_KEY",
+    "OPENAI_MODEL",
+    "GMAIL_USERNAME",
+    "GMAIL_PASSWORD",
+    "RECRUITER_NOTIFICATION_EMAILS",
     "LOG_LEVEL",
 ]
 
@@ -35,7 +40,7 @@ def _clear_env(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_settings_load_default_secure_placeholders(monkeypatch: pytest.MonkeyPatch) -> None:
     _clear_env(monkeypatch)
 
-    settings = Settings(validate_required=False)
+    settings = get_settings(validate_required=False)
 
     assert settings.app_name == "BlackcrestRecruitOS"
     assert settings.app_env == "development"
@@ -59,9 +64,10 @@ def test_settings_environment_overrides(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setenv("WIX_API_KEY", "wix-key")
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "client-id")
     monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-4o")
     monkeypatch.setenv("LOG_LEVEL", "debug")
 
-    settings = Settings(validate_required=False)
+    settings = get_settings(validate_required=False)
 
     assert settings.app_name == "RecruitOS V2"
     assert settings.app_env == "testing"
@@ -71,37 +77,46 @@ def test_settings_environment_overrides(monkeypatch: pytest.MonkeyPatch) -> None
     assert settings.wix_api_key == "wix-key"
     assert settings.google_client_id == "client-id"
     assert settings.openai_api_key == "openai-key"
+    assert settings.openai_model == "gpt-4o"
     assert settings.log_level == "DEBUG"
 
 
-
-def test_validate_required_returns_required_values(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_validate_feature_settings_uses_tracked_settings_api(monkeypatch: pytest.MonkeyPatch) -> None:
     _clear_env(monkeypatch)
     monkeypatch.setenv("OPENAI_API_KEY", "secret-openai")
-    monkeypatch.setenv("WIX_API_KEY", "secret-wix")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-4o-mini")
+    monkeypatch.setenv("GMAIL_USERNAME", "recruiter@example.com")
+    monkeypatch.setenv("GMAIL_PASSWORD", "smtp-secret")
+    monkeypatch.setenv("RECRUITER_NOTIFICATION_EMAILS", "team@example.com")
 
-    values = validate_required("OPENAI_API_KEY", "WIX_API_KEY")
+    settings = Settings(validate_required=False)
 
-    assert values == {
-        "OPENAI_API_KEY": "secret-openai",
-        "WIX_API_KEY": "secret-wix",
-    }
-
-
-
-def test_mask_secret_hides_secret_content() -> None:
-    assert mask_secret(None) is None
-    assert mask_secret("") == ""
-    assert mask_secret("abcd") == "****"
-    assert mask_secret("abcdefghijkl") == "ab********kl"
-
+    settings.validate_openai_settings()
+    settings.validate_gmail_settings(require_recipients=True)
+    settings.validate_feature_settings("gmail", profiles=("with_recipients",))
 
 
 def test_missing_required_values_raise_config_error(monkeypatch: pytest.MonkeyPatch) -> None:
     _clear_env(monkeypatch)
 
-    with pytest.raises(BlackcrestConfigError):
-        get_required("OPENAI_API_KEY")
+    settings = Settings(validate_required=False)
 
     with pytest.raises(BlackcrestConfigError):
-        validate_required("OPENAI_API_KEY", "WIX_API_KEY")
+        settings.validate_openai_settings()
+
+    with pytest.raises(BlackcrestConfigError):
+        settings.validate_gmail_settings()
+
+    with pytest.raises(BlackcrestConfigError):
+        settings.validate_feature_settings("gmail", profiles=("with_recipients",))
+
+
+def test_package_import_smoke() -> None:
+    config_package = importlib.import_module("config")
+    settings_module = importlib.import_module("config.settings")
+    database_package = importlib.import_module("database")
+    init_db_module = importlib.import_module("database.init_db")
+
+    assert config_package.Settings is settings_module.Settings
+    assert config_package.get_settings is settings_module.get_settings
+    assert database_package.initialize_database is init_db_module.initialize_database
